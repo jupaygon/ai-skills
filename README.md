@@ -1,6 +1,13 @@
 # ai-skills
 
+[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![Skills](https://img.shields.io/badge/skills-1-blue.svg)](#available-skills)
+[![Claude Code](https://img.shields.io/badge/Claude_Code-compatible-blueviolet.svg)](https://claude.com/claude-code)
+[![Cursor](https://img.shields.io/badge/Cursor-compatible-blue.svg)](https://cursor.com)
+
 Production-ready AI skills for Claude Code, Cursor, and other AI coding agents. Verified references for frameworks, APIs, and dev workflows.
+
+> **Stop your AI agent from hallucinating API calls.** Give it verified, up-to-date knowledge instead.
 
 ## What is a skill?
 
