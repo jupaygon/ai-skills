@@ -94,10 +94,7 @@ class DashboardController extends AbstractDashboardController
             ->generateRelativeUrls()
             ->setLocales(['en' => 'English', 'es' => 'Español'])
             ->setTextDirection('ltr')                // 'ltr' or 'rtl'
-            ->useEntityTranslations()                // auto translation keys for entities
-            ->displayUserName(false)                 // hide username in top bar
-            ->displayUserAvatar(false)               // hide avatar in top bar
-            ->disableLogoutLink();                   // for OAuth/HTTP Basic
+            ->useEntityTranslations();               // auto translation keys for entities
     }
 
     // Global CRUD defaults (applies to ALL crud controllers under this dashboard)
@@ -146,33 +143,33 @@ $url = $this->container->get(AdminUrlGenerator::class)
 
 ```php
 // Link to dashboard
-MenuItem::linkToDashboard(string $label, ?string $icon = null)
+MenuItem::linkToDashboard(TranslatableInterface|string $label, ?string $icon = null)
 
 // Link to a CRUD controller (REPLACES linkToCrud from v4)
-MenuItem::linkTo(string $controllerFqcn, ?string $label = null, ?string $icon = null)
+MenuItem::linkTo(string $controllerFqcn, TranslatableInterface|string|null $label = null, ?string $icon = null)
     ->setAction(string $action)         // e.g. Action::NEW
     ->setEntityId(AbstractUid|int|string $entityId)
     ->setDefaultSort(['field' => 'DESC'])
     ->setHtmlAttribute(string $name, mixed $value)  // only on ControllerMenuItem
 
 // Link to a Symfony route
-MenuItem::linkToRoute(string $label, ?string $icon, string $routeName, array $routeParameters = [])
+MenuItem::linkToRoute(TranslatableInterface|string $label, ?string $icon, string $routeName, array $routeParameters = [])
 
 // Link to external URL
-MenuItem::linkToUrl(string $label, ?string $icon, string $url)
+MenuItem::linkToUrl(TranslatableInterface|string $label, ?string $icon, string $url)
 
 // Visual separator
-MenuItem::section(?string $label = null, ?string $icon = null)
+MenuItem::section(TranslatableInterface|string|null $label = null, ?string $icon = null)
 
 // Dropdown submenu (max 2 levels)
-MenuItem::subMenu(string $label, ?string $icon = null)
+MenuItem::subMenu(TranslatableInterface|string $label, ?string $icon = null)
     ->setSubItems(array $items)
 
 // Logout
-MenuItem::linkToLogout(string $label, ?string $icon = null)
+MenuItem::linkToLogout(TranslatableInterface|string $label, ?string $icon = null)
 
 // Exit impersonation
-MenuItem::linkToExitImpersonation(string $label, ?string $icon = null)
+MenuItem::linkToExitImpersonation(TranslatableInterface|string $label, ?string $icon = null)
 ```
 
 ### Common methods on all MenuItems
@@ -182,7 +179,7 @@ MenuItem::linkToExitImpersonation(string $label, ?string $icon = null)
 ->setLinkRel(string $rel)
 ->setLinkTarget(string $target)             // '_blank', '_self'
 ->setPermission(string|Expression $permission)  // 'ROLE_ADMIN' or Expression object
-->setBadge(mixed $content, string $style = 'secondary', array $htmlAttributes = [])
+->setBadge(\Stringable|string|int|float|bool|null $content, string $style = 'secondary', array $htmlAttributes = [])
 ->setQueryParameter(string $name, mixed $value)
 ->setTranslationParameters(array $parameters)
 ```
@@ -245,7 +242,7 @@ class ProductCrudController extends AbstractCrudController
             ->showEntityActionsInlined()               // actions as icons, not dropdown
             ->setDateFormat('dd/MM/yyyy')
             ->setTimeFormat('HH:mm')
-            ->setNumberFormat('%.2d')
+            ->setNumberFormat('%.2f')
             ->setThousandsSeparator('.')
             ->setDecimalSeparator(',')
             ->overrideTemplate('crud/index', 'admin/product/index.html.twig')
@@ -278,17 +275,17 @@ public function createEntity(string $entityFqcn): object
     return $entity;
 }
 
-public function persistEntity(EntityManagerInterface $em, mixed $entityInstance): void
+public function persistEntity(EntityManagerInterface $em, object $entityInstance): void
 {
     parent::persistEntity($em, $entityInstance);
 }
 
-public function updateEntity(EntityManagerInterface $em, mixed $entityInstance): void
+public function updateEntity(EntityManagerInterface $em, object $entityInstance): void
 {
     parent::updateEntity($em, $entityInstance);
 }
 
-public function deleteEntity(EntityManagerInterface $em, mixed $entityInstance): void
+public function deleteEntity(EntityManagerInterface $em, object $entityInstance): void
 {
     parent::deleteEntity($em, $entityInstance);
 }
@@ -337,7 +334,7 @@ TextField, TimeField, TimezoneField, UrlField.
 ```php
 ->hideOnIndex() / ->hideOnDetail() / ->hideOnForm()
 ->hideWhenCreating() / ->hideWhenUpdating()
-->onlyOnIndex() / ->onlyOnDetail() / ->onlyOnForms()
+->onlyOnIndex() / ->onlyOnDetail() / ->onlyOnForm()
 ->onlyWhenCreating() / ->onlyWhenUpdating()
 ->setColumns(6)                              // Bootstrap grid width
 ->setColumns('col-sm-6 col-lg-4')           // Responsive
@@ -356,7 +353,7 @@ TextField, TimeField, TimezoneField, UrlField.
 ->setHtmlAttribute('data-x', 'y')
 ->setHtmlAttributes(['data-x' => 'y'])
 ->addFormTheme('admin/form/custom_theme.html.twig')
-->addCssFiles(Asset::new('css/field.css')->onlyOnForms())
+->addCssFiles(Asset::new('css/field.css')->onlyOnForm())
 ->addJsFiles(Asset::new('js/field.js')->onlyOnIndex())
 ```
 
@@ -499,7 +496,11 @@ public function configureActions(Actions $actions): Actions
         ->update(Crud::PAGE_INDEX, Action::EDIT, fn(Action $a) => $a->setLabel('Modify'))
 
         // Reorder actions on a page
-        ->reorder(Crud::PAGE_INDEX, [Action::DETAIL, Action::EDIT, Action::DELETE]);
+        ->reorder(Crud::PAGE_INDEX, [Action::DETAIL, Action::EDIT, Action::DELETE])
+
+        // Set permissions (on Actions, NOT on individual Action objects)
+        ->setPermission(Action::DELETE, 'ROLE_SUPER_ADMIN')
+        ->setPermission('review', 'ROLE_REVIEWER');
 }
 ```
 
@@ -513,7 +514,6 @@ $reviewAction = Action::new('review', 'Review', 'fa fa-eye')
     ->setCssClass('btn btn-primary')
     ->setIcon('fa fa-check')
     ->displayIf(fn(Product $p) => !$p->isReviewed())
-    ->setPermission('ROLE_REVIEWER')
     ->askConfirmation('Are you sure you want to review %entity_name% #%entity_id%?')  // placeholders: %entity_name%, %entity_id%, %action_name%
     ->renderAsButton()                          // NOT displayAsButton (v4)
     ->asPrimaryAction()                         // or asWarningAction(), asDangerAction()
@@ -531,13 +531,13 @@ $reviewAction = Action::new('review', 'Review', 'fa fa-eye')
 ### Action Groups (dropdown grouping)
 
 ```php
-$actionGroup = ActionGroup::new('fa fa-ellipsis-v')
+$actionGroup = ActionGroup::new('actions', 'Actions', 'fa fa-ellipsis-v')  // name, label, icon
     ->addMainAction(Action::new('approve', 'Approve')->linkToCrudAction('approve'))
     ->addAction(Action::new('archive', 'Archive')->linkToCrudAction('archive'))
     ->addHeader('Danger zone')
     ->addDivider()
     ->addAction(Action::new('delete', 'Delete')->linkToCrudAction('softDelete'))
-    ->displayIf(fn(Product $p) => $p->isPublished())
+    ->displayIf(fn(?EntityDto $entityDto) => $entityDto?->getInstance()->isPublished())
     ->createAsGlobalActionGroup();            // for index page header
 ```
 
@@ -560,7 +560,12 @@ public function exportBatch(BatchActionDto $batchActionDto): Response
 {
     $entityIds = $batchActionDto->getEntityIds();
     // ... process selected entities
-    return $this->redirect($batchActionDto->getReferrerUrl());
+    // Note: getReferrerUrl() was removed in v5. Use AdminUrlGenerator to redirect back.
+    $url = $this->container->get(AdminUrlGenerator::class)
+        ->setController(static::class)
+        ->setAction(Action::INDEX)
+        ->generateUrl();
+    return $this->redirect($url);
 }
 ```
 
@@ -697,6 +702,7 @@ use EasyCorp\Bundle\EasyAdminBundle\Event\AfterEntityUpdatedEvent;
 use EasyCorp\Bundle\EasyAdminBundle\Event\BeforeEntityDeletedEvent;
 use EasyCorp\Bundle\EasyAdminBundle\Event\AfterEntityDeletedEvent;
 use EasyCorp\Bundle\EasyAdminBundle\Event\AfterEntityBuiltEvent;
+use EasyCorp\Bundle\EasyAdminBundle\Event\AfterEntitySearchEvent;
 
 class ProductEventSubscriber implements EventSubscriberInterface
 {
@@ -734,6 +740,8 @@ document.addEventListener('ea.form.submit', (event) => { ... });
 document.addEventListener('ea.form.error', (event) => { ... });
 document.addEventListener('ea.collection.item-added', (event) => { ... });
 document.addEventListener('ea.collection.item-removed', (event) => { ... });
+document.addEventListener('ea.autocomplete.pre-connect', (event) => { ... });
+document.addEventListener('ea.autocomplete.connect', (event) => { ... });
 ```
 
 ---
@@ -749,8 +757,11 @@ Default routes for each CRUD controller:
 | detail | `/<controller>/{entityId}` | `app_admin_<entity>_detail` |
 | edit | `/<controller>/{entityId}/edit` | `app_admin_<entity>_edit` |
 | delete | `/<controller>/{entityId}/delete` | `app_admin_<entity>_delete` |
-| batch_delete | `/<controller>/batch-delete` | `app_admin_<entity>_batchDelete` |
+| batch_delete | `/<controller>/batch-delete` | `app_admin_<entity>_batch_delete` |
 | autocomplete | `/<controller>/autocomplete` | `app_admin_<entity>_autocomplete` |
+| render_filters | `/<controller>/render-filters` | `app_admin_<entity>_render_filters` |
+
+Note: The `app_admin_` prefix comes from the dashboard's `routeName` (default: `app_admin`). If your dashboard uses a different `routeName`, the prefix changes accordingly.
 
 ### Custom routes per controller
 
@@ -783,7 +794,7 @@ public function configureAssets(): Assets
         ->addCssFile('css/admin.css')
         ->addCssFile(Asset::new('css/detail.css')->onlyOnDetail())
         ->addJsFile('js/admin.js')
-        ->addJsFile(Asset::new('js/form.js')->defer()->onlyOnForms())
+        ->addJsFile(Asset::new('js/form.js')->defer()->onlyOnForm())
         ->addAssetMapperEntry('admin')
         ->addWebpackEncoreEntry('admin-app')
         ->addHtmlContentToHead('<meta name="robots" content="noindex">')
@@ -853,6 +864,8 @@ public function configureUserMenu(UserInterface $user): UserMenu
         ->setName($user->getFullName())
         ->setAvatarUrl($user->getAvatarUrl())
         ->setGravatarEmail($user->getEmail())
+        ->displayUserName(false)                 // hide username in top bar
+        ->displayUserAvatar(false)               // hide avatar in top bar
         ->addMenuItems([
             MenuItem::linkToRoute('My Profile', 'fa fa-id-card', 'user_profile'),
             MenuItem::section(),
