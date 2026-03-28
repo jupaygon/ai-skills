@@ -27,7 +27,7 @@ Sources:
 | `getCrudControllers()` | `getAdminControllers()` |
 | Pretty URLs optional | Pretty URLs mandatory (only format) |
 | `BatchActionDto::referrerUrl` | Removed |
-| `MenuItemMatcherInterface::isSelected()/isExpanded()` | Removed; use `markSelectedMenuItem()` |
+| `MenuItemMatcherInterface::isSelected()/isExpanded()` | Methods removed; use `markSelectedMenuItem()` instead |
 | `createEntity()` returns untyped | Must return `object` |
 | `#[Route]` on dashboard `index()` | `#[AdminDashboard]` attribute on class |
 | `BatchActionDto::getReferrerUrl()` | Removed (along with property) |
@@ -84,7 +84,7 @@ class DashboardController extends AbstractDashboardController
     public function configureDashboard(): Dashboard
     {
         return Dashboard::new()
-            ->setTitle('My App')                    // supports HTML
+            ->setTitle('My App')
             ->setFaviconPath('favicon.svg')
             ->renderContentMaximized()              // full width
             ->renderSidebarMinimized()              // narrow sidebar
@@ -334,7 +334,7 @@ TextField, TimeField, TimezoneField, UrlField.
 ```php
 ->hideOnIndex() / ->hideOnDetail() / ->hideOnForm()
 ->hideWhenCreating() / ->hideWhenUpdating()
-->onlyOnIndex() / ->onlyOnDetail() / ->onlyOnForm()
+->onlyOnIndex() / ->onlyOnDetail() / ->onlyOnForms()
 ->onlyWhenCreating() / ->onlyWhenUpdating()
 ->setColumns(6)                              // Bootstrap grid width
 ->setColumns('col-sm-6 col-lg-4')           // Responsive
@@ -353,7 +353,7 @@ TextField, TimeField, TimezoneField, UrlField.
 ->setHtmlAttribute('data-x', 'y')
 ->setHtmlAttributes(['data-x' => 'y'])
 ->addFormTheme('admin/form/custom_theme.html.twig')
-->addCssFiles(Asset::new('css/field.css')->onlyOnForm())
+->addCssFiles(Asset::new('css/field.css')->onlyOnForms())
 ->addJsFiles(Asset::new('js/field.js')->onlyOnIndex())
 ```
 
@@ -435,7 +435,7 @@ ImageField::new('photo')
     ->setBasePath('uploads/photos')          // public path for display
     ->setUploadDir('public/uploads/photos')  // filesystem path for upload
     ->setUploadedFileNamePattern('[year]/[month]/[slug]-[contenthash].[extension]')
-    // Tokens: [year], [month], [day], [slug], [contenthash], [uuid], [ulid], [randomhash], [timestamp]
+    // Tokens: [year], [month], [day], [name], [slug], [contenthash], [uuid], [ulid], [randomhash], [timestamp], [extension]
     ->setFileConstraints(new File(maxSize: '2M', mimeTypes: ['image/jpeg', 'image/png']))
 ```
 
@@ -525,7 +525,7 @@ $reviewAction = Action::new('review', 'Review', 'fa fa-eye')
 ```php
 ->asPrimaryAction()   ->asDefaultAction()   ->asSuccessAction()
 ->asWarningAction()   ->asDangerAction()
-->renderAsLink()      ->renderAsButton()    ->renderAsForm()
+->renderAsLink()      ->renderAsButton()    ->renderAsForm()    ->asTextLink()
 ```
 
 ### Action Groups (dropdown grouping)
@@ -752,23 +752,23 @@ Default routes for each CRUD controller:
 
 | Action | Default path | Default name |
 |---|---|---|
-| index | `/<controller>/` | `app_admin_<entity>_index` |
-| new | `/<controller>/new` | `app_admin_<entity>_new` |
-| detail | `/<controller>/{entityId}` | `app_admin_<entity>_detail` |
-| edit | `/<controller>/{entityId}/edit` | `app_admin_<entity>_edit` |
-| delete | `/<controller>/{entityId}/delete` | `app_admin_<entity>_delete` |
-| batch_delete | `/<controller>/batch-delete` | `app_admin_<entity>_batch_delete` |
-| autocomplete | `/<controller>/autocomplete` | `app_admin_<entity>_autocomplete` |
-| render_filters | `/<controller>/render-filters` | `app_admin_<entity>_render_filters` |
+| index | `/<controller>/` | `<routeName>_<entity>_index` |
+| new | `/<controller>/new` | `<routeName>_<entity>_new` |
+| detail | `/<controller>/{entityId}` | `<routeName>_<entity>_detail` |
+| edit | `/<controller>/{entityId}/edit` | `<routeName>_<entity>_edit` |
+| delete | `/<controller>/{entityId}/delete` | `<routeName>_<entity>_delete` |
+| batch_delete | `/<controller>/batch-delete` | `<routeName>_<entity>_batch_delete` |
+| autocomplete | `/<controller>/autocomplete` | `<routeName>_<entity>_autocomplete` |
+| render_filters | `/<controller>/render-filters` | `<routeName>_<entity>_render_filters` |
 
-Note: The `app_admin_` prefix comes from the dashboard's `routeName` (default: `app_admin`). If your dashboard uses a different `routeName`, the prefix changes accordingly.
+`<routeName>` is the `routeName` from `#[AdminDashboard]` (default: `app_admin`).
 
 ### Custom routes per controller
 
 ```php
 use EasyCorp\Bundle\EasyAdminBundle\Attribute\AdminRoute;
 
-#[AdminRoute(routePath: '/products/{entityId}/edit', routeName: 'admin_product_edit')]
+#[AdminRoute(path: '/products/{entityId}/edit', name: 'admin_product_edit')]
 class ProductCrudController extends AbstractCrudController { ... }
 ```
 
@@ -794,7 +794,7 @@ public function configureAssets(): Assets
         ->addCssFile('css/admin.css')
         ->addCssFile(Asset::new('css/detail.css')->onlyOnDetail())
         ->addJsFile('js/admin.js')
-        ->addJsFile(Asset::new('js/form.js')->defer()->onlyOnForm())
+        ->addJsFile(Asset::new('js/form.js')->defer()->onlyOnForms())
         ->addAssetMapperEntry('admin')
         ->addWebpackEncoreEntry('admin-app')
         ->addHtmlContentToHead('<meta name="robots" content="noindex">')
@@ -844,10 +844,10 @@ public function configureCrud(Crud $crud): Crud
 
 | Page | body id | body class |
 |---|---|---|
-| index | `ea-index-Product` | `ea-index ea-index-Product` |
-| detail | `ea-detail-Product-42` | `ea-detail ea-detail-Product` |
-| edit | `ea-edit-Product-42` | `ea-edit ea-edit-Product` |
-| new | `ea-new-Product` | `ea-new ea-new-Product` |
+| index | `easyadmin-index-Product` | `ea-index ea-index-Product` |
+| detail | `easyadmin-detail-Product-42` | `ea-detail ea-detail-Product` |
+| edit | `easyadmin-edit-Product-42` | `ea-edit ea-edit-Product` |
+| new | `easyadmin-new-Product` | `ea-new ea-new-Product` |
 
 ### Dark mode
 
