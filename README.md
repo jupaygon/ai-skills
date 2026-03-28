@@ -26,9 +26,9 @@ Skills bridge that gap:
 
 ## Available skills
 
-| Skill | Version | Description |
-|-------|---------|-------------|
-| [easyadmin5](skills/easyadmin5/SKILL.md) | 5.0.x | EasyAdmin 5 for Symfony — dashboard, CRUD, fields, actions, design, migration from v4 |
+| Skill                                      | Version  | Description                                                                                                      |
+|--------------------------------------------|----------|------------------------------------------------------------------------------------------------------------------|
+| [easyadmin5](skills/easyadmin5/SKILL.md)   | 5.0.2+   | EasyAdmin 5 for Symfony — dashboard, CRUD, fields, filters, actions, events, security, design, migration from v4 |
 
 ## How to use
 
@@ -91,6 +91,14 @@ Each skill is a single Markdown file — no dependencies, no build step, no conf
 - Include version numbers — skills are version-specific
 - Update when the library releases breaking changes
 
+## Author
+
+[Juanjo Payá](https://github.com/jupaygon) · [Blog](https://juanjopaya.com)
+
 ## License
 
 MIT
+
+---
+
+If you find this useful, a star helps other developers discover it.
