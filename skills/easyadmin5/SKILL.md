@@ -26,11 +26,10 @@ Sources:
 | `AdminContext::getSignedUrls()` | Removed |
 | `getCrudControllers()` | `getAdminControllers()` |
 | Pretty URLs optional | Pretty URLs mandatory (only format) |
-| `BatchActionDto::referrerUrl` | Removed |
+| `BatchActionDto::referrerUrl` / `getReferrerUrl()` | Removed |
 | `MenuItemMatcherInterface::isSelected()/isExpanded()` | Methods removed; use `markSelectedMenuItem()` instead |
 | `createEntity()` returns untyped | Must return `object` |
 | `#[Route]` on dashboard `index()` | `#[AdminDashboard]` attribute on class |
-| `BatchActionDto::getReferrerUrl()` | Removed (along with property) |
 | `AdminContextProvider::hasContext()` | Removed; check `getContext() !== null` |
 | `AdminRouteGenerator::usesPrettyUrls()` | Removed (pretty URLs are the only format) |
 | PHP 8.1 minimum | PHP 8.2+ required |
@@ -184,6 +183,8 @@ MenuItem::linkToExitImpersonation(TranslatableInterface|string $label, ?string $
 ->setTranslationParameters(array $parameters)
 ```
 
+Note: `setLinkRel()` and `setLinkTarget()` are not available on `SubMenuItem`.
+
 ### Menu example (submenus)
 
 ```php
@@ -242,7 +243,7 @@ class ProductCrudController extends AbstractCrudController
             ->showEntityActionsInlined()               // actions as icons, not dropdown
             ->setDateFormat('dd/MM/yyyy')
             ->setTimeFormat('HH:mm')
-            ->setNumberFormat('%.2f')
+            ->setNumberFormat('%.2d')
             ->setThousandsSeparator('.')
             ->setDecimalSeparator(',')
             ->overrideTemplate('crud/index', 'admin/product/index.html.twig')
@@ -702,7 +703,6 @@ use EasyCorp\Bundle\EasyAdminBundle\Event\AfterEntityUpdatedEvent;
 use EasyCorp\Bundle\EasyAdminBundle\Event\BeforeEntityDeletedEvent;
 use EasyCorp\Bundle\EasyAdminBundle\Event\AfterEntityDeletedEvent;
 use EasyCorp\Bundle\EasyAdminBundle\Event\AfterEntityBuiltEvent;
-use EasyCorp\Bundle\EasyAdminBundle\Event\AfterEntitySearchEvent;
 
 class ProductEventSubscriber implements EventSubscriberInterface
 {
@@ -740,8 +740,9 @@ document.addEventListener('ea.form.submit', (event) => { ... });
 document.addEventListener('ea.form.error', (event) => { ... });
 document.addEventListener('ea.collection.item-added', (event) => { ... });
 document.addEventListener('ea.collection.item-removed', (event) => { ... });
-document.addEventListener('ea.autocomplete.pre-connect', (event) => { ... });
-document.addEventListener('ea.autocomplete.connect', (event) => { ... });
+// Symfony UX Autocomplete events (used by AssociationField with autocomplete)
+document.addEventListener('autocomplete:pre-connect', (event) => { ... });
+document.addEventListener('autocomplete:connect', (event) => { ... });
 ```
 
 ---
@@ -761,15 +762,23 @@ Default routes for each CRUD controller:
 | autocomplete | `/<controller>/autocomplete` | `<routeName>_<entity>_autocomplete` |
 | render_filters | `/<controller>/render-filters` | `<routeName>_<entity>_render_filters` |
 
-`<routeName>` is the `routeName` from `#[AdminDashboard]` (default: `app_admin`).
+`<routeName>` is the `routeName` from `#[AdminDashboard]` (mandatory, no default — e.g. `app_admin`).
 
-### Custom routes per controller
+### Custom routes per action
+
+`#[AdminRoute]` is applied to individual action methods, not to the class:
 
 ```php
 use EasyCorp\Bundle\EasyAdminBundle\Attribute\AdminRoute;
 
-#[AdminRoute(path: '/products/{entityId}/edit', name: 'admin_product_edit')]
-class ProductCrudController extends AbstractCrudController { ... }
+class ProductCrudController extends AbstractCrudController
+{
+    #[AdminRoute(path: '/products/{entityId}/edit', name: 'admin_product_edit')]
+    public function edit(AdminContext $context): KeyValueStore|Response
+    {
+        return parent::edit($context);
+    }
+}
 ```
 
 ### Custom routes via dashboard
@@ -844,10 +853,10 @@ public function configureCrud(Crud $crud): Crud
 
 | Page | body id | body class |
 |---|---|---|
-| index | `easyadmin-index-Product` | `ea-index ea-index-Product` |
-| detail | `easyadmin-detail-Product-42` | `ea-detail ea-detail-Product` |
-| edit | `easyadmin-edit-Product-42` | `ea-edit ea-edit-Product` |
-| new | `easyadmin-new-Product` | `ea-new ea-new-Product` |
+| index | `ea-index-Product` | `ea-index ea-index-Product` |
+| detail | `ea-detail-Product-42` | `ea-detail ea-detail-Product` |
+| edit | `ea-edit-Product-42` | `ea-edit ea-edit-Product` |
+| new | `ea-new-Product` | `ea-new ea-new-Product` |
 
 ### Dark mode
 
