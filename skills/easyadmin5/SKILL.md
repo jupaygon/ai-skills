@@ -31,7 +31,7 @@ Sources:
 | `createEntity()` returns untyped | Must return `object` |
 | `#[Route]` on dashboard `index()` | `#[AdminDashboard]` attribute on class |
 | `AdminContextProvider::hasContext()` | Removed; check `getContext() !== null` |
-| `AdminRouteGenerator::usesPrettyUrls()` | Removed (pretty URLs are the only format) |
+| `AdminRouteGenerator::usesPrettyUrls()` | Deprecated (always returns `true`; removed from interface) |
 | PHP 8.1 minimum | PHP 8.2+ required |
 | Symfony 5.4 supported | Symfony 6.4+ required |
 
@@ -766,7 +766,7 @@ Default routes for each CRUD controller:
 
 ### Custom routes per action
 
-`#[AdminRoute]` is applied to individual action methods, not to the class:
+`#[AdminRoute]` can be applied to individual action methods or to the class (repeatable):
 
 ```php
 use EasyCorp\Bundle\EasyAdminBundle\Attribute\AdminRoute;
