@@ -1,6 +1,6 @@
 # EasyAdmin 5 — Quick Reference for Symfony Projects
 
-Version: 5.0.x (March 2026)
+Version: 5.0.2+ (March 2026)
 Bundle: `easycorp/easyadmin-bundle`
 
 This skill is a verified reference extracted from official documentation.
@@ -29,6 +29,12 @@ Sources:
 | `BatchActionDto::referrerUrl` | Removed |
 | `MenuItemMatcherInterface::isSelected()/isExpanded()` | Removed; use `markSelectedMenuItem()` |
 | `createEntity()` returns untyped | Must return `object` |
+| `#[Route]` on dashboard `index()` | `#[AdminDashboard]` attribute on class |
+| `BatchActionDto::getReferrerUrl()` | Removed (along with property) |
+| `AdminContextProvider::hasContext()` | Removed; check `getContext() !== null` |
+| `AdminRouteGenerator::usesPrettyUrls()` | Removed (pretty URLs are the only format) |
+| PHP 8.1 minimum | PHP 8.2+ required |
+| Symfony 5.4 supported | Symfony 6.4+ required |
 
 ### Required route config (mandatory in 5.x)
 
@@ -88,6 +94,7 @@ class DashboardController extends AbstractDashboardController
             ->generateRelativeUrls()
             ->setLocales(['en' => 'English', 'es' => 'Español'])
             ->setTextDirection('ltr')                // 'ltr' or 'rtl'
+            ->useEntityTranslations()                // auto translation keys for entities
             ->displayUserName(false)                 // hide username in top bar
             ->displayUserAvatar(false)               // hide avatar in top bar
             ->disableLogoutLink();                   // for OAuth/HTTP Basic
@@ -122,6 +129,8 @@ class ManagerDashboardController extends AbstractDashboardController { ... }
 
 Use `allowedControllers` or `deniedControllers` to restrict which CRUD controllers appear.
 
+Full `#[AdminDashboard]` parameters: `routePath`, `routeName`, `allowedControllers`, `deniedControllers`, `routes`, `routeOptions`.
+
 When generating URLs from outside EA context, specify the dashboard:
 
 ```php
@@ -142,8 +151,9 @@ MenuItem::linkToDashboard(string $label, ?string $icon = null)
 // Link to a CRUD controller (REPLACES linkToCrud from v4)
 MenuItem::linkTo(string $controllerFqcn, ?string $label = null, ?string $icon = null)
     ->setAction(string $action)         // e.g. Action::NEW
-    ->setEntityId(mixed $entityId)
+    ->setEntityId(AbstractUid|int|string $entityId)
     ->setDefaultSort(['field' => 'DESC'])
+    ->setHtmlAttribute(string $name, mixed $value)  // only on ControllerMenuItem
 
 // Link to a Symfony route
 MenuItem::linkToRoute(string $label, ?string $icon, string $routeName, array $routeParameters = [])
@@ -159,10 +169,10 @@ MenuItem::subMenu(string $label, ?string $icon = null)
     ->setSubItems(array $items)
 
 // Logout
-MenuItem::linkToLogout(string $label, ?string $icon)
+MenuItem::linkToLogout(string $label, ?string $icon = null)
 
 // Exit impersonation
-MenuItem::linkToExitImpersonation(string $label, ?string $icon)
+MenuItem::linkToExitImpersonation(string $label, ?string $icon = null)
 ```
 
 ### Common methods on all MenuItems
@@ -171,9 +181,10 @@ MenuItem::linkToExitImpersonation(string $label, ?string $icon)
 ->setCssClass(string $cssClass)
 ->setLinkRel(string $rel)
 ->setLinkTarget(string $target)             // '_blank', '_self'
-->setPermission(string $permission)         // 'ROLE_ADMIN'
-->setHtmlAttribute(string $name, mixed $value)
+->setPermission(string|Expression $permission)  // 'ROLE_ADMIN' or Expression object
 ->setBadge(mixed $content, string $style = 'secondary', array $htmlAttributes = [])
+->setQueryParameter(string $name, mixed $value)
+->setTranslationParameters(array $parameters)
 ```
 
 ### Menu example (submenus)
@@ -371,6 +382,7 @@ AssociationField::new('category')
     ->setQueryBuilder(fn(QueryBuilder $qb) => $qb->andWhere('entity.isActive = true'))
     ->setSortProperty('name')                // sort options by this field
     ->setFormTypeOption('by_reference', false)  // for collections (ManyToMany)
+    ->setPreferredChoices(fn() => [...])      // items shown first in dropdown
     ->renderAsHtml()                         // render HTML in association labels
 ```
 
@@ -401,6 +413,7 @@ ChoiceField::new('status')
     ->renderAsBadges()                       // colored badges on index/detail
     ->renderAsNativeWidget()                 // standard <select>
     ->autocomplete()                         // searchable dropdown
+    ->setPreferredChoices(['draft'])          // items shown first in dropdown
     ->escapeHtml(false)                      // allow HTML in labels
 ```
 
@@ -415,6 +428,7 @@ CollectionField::new('tags')
     ->setEntryIsComplex(true)                // for complex embedded forms
     ->renderExpanded()                       // show all entries (not collapsed)
     ->showEntryLabel(false)                  // hide entry labels
+    ->setEntryToStringMethod('getName')      // method to display entry label
 ```
 
 ### ImageField
@@ -500,7 +514,7 @@ $reviewAction = Action::new('review', 'Review', 'fa fa-eye')
     ->setIcon('fa fa-check')
     ->displayIf(fn(Product $p) => !$p->isReviewed())
     ->setPermission('ROLE_REVIEWER')
-    ->askConfirmation('Are you sure you want to review %entity_name% #%entity_id%?')
+    ->askConfirmation('Are you sure you want to review %entity_name% #%entity_id%?')  // placeholders: %entity_name%, %entity_id%, %action_name%
     ->renderAsButton()                          // NOT displayAsButton (v4)
     ->asPrimaryAction()                         // or asWarningAction(), asDangerAction()
     ->createAsGlobalAction();                   // for index page header
@@ -519,9 +533,10 @@ $reviewAction = Action::new('review', 'Review', 'fa fa-eye')
 ```php
 $actionGroup = ActionGroup::new('fa fa-ellipsis-v')
     ->addMainAction(Action::new('approve', 'Approve')->linkToCrudAction('approve'))
-    ->add(Action::new('archive', 'Archive')->linkToCrudAction('archive'))
+    ->addAction(Action::new('archive', 'Archive')->linkToCrudAction('archive'))
+    ->addHeader('Danger zone')
     ->addDivider()
-    ->add(Action::new('delete', 'Delete')->linkToCrudAction('softDelete'))
+    ->addAction(Action::new('delete', 'Delete')->linkToCrudAction('softDelete'))
     ->displayIf(fn(Product $p) => $p->isPublished())
     ->createAsGlobalActionGroup();            // for index page header
 ```
@@ -549,13 +564,14 @@ public function exportBatch(BatchActionDto $batchActionDto): Response
 }
 ```
 
-Disable batch delete confirmation:
+Batch action confirmation:
 
 ```php
 public function configureCrud(Crud $crud): Crud
 {
-    return $crud->askConfirmationOnBatchActions(false);
-}
+    return $crud
+        ->askConfirmationOnBatchActions(false)              // disable confirmation
+        ->askConfirmationOnBatchActions('Custom message')   // custom message (supports %action_name%, %num_items%);
 ```
 
 ---
@@ -616,7 +632,7 @@ class ActiveFilter implements FilterInterface
 Filters can apply to properties that don't exist on the entity (virtual/computed):
 
 ```php
-$filters->add(TextFilter::new('custom')->mapped(false));
+$filters->add(TextFilter::new('custom')->setFormTypeOption('mapped', false));
 ```
 
 ---
