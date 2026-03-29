@@ -71,23 +71,40 @@ Each skill is a single Markdown file — no dependencies, no build step, no conf
 
 ## Contributing
 
+Contributions are welcome! Fork the repo and open a PR. You can:
+
+- **Create a new skill** for a technology that is not covered yet
+- **Improve an existing skill** — fix errors, add missing methods, update for new versions, improve examples
+
 ### Adding a new skill
 
-1. Create `skills/<name>/SKILL.md`
-2. Follow this structure:
+1. Fork this repository
+2. Create `skills/<name>/SKILL.md`
+3. Follow this structure:
    - **Header**: Name, version, source URLs
    - **Breaking changes** (if migrating from a previous version)
    - **API reference**: Method signatures, parameters, return types
    - **Code examples**: Minimal, correct, copy-pasteable
    - **Common patterns**: Real-world usage, not toy examples
-3. **Verify everything** against official documentation — never guess
-4. Submit a PR
+4. **Verify everything** against official documentation and source code — never guess
+5. Open a PR from your fork
+
+### How we verify skills
+
+Skills go through an iterative review process before merging:
+
+1. **Extraction** — API reference drafted from official docs and source code
+2. **Multi-agent review** — Different AI agents cross-check every signature, parameter, and example against the real source code. Each reviewer catches errors the previous one missed
+3. **Human review** — Final validation, judgment calls on what to include, and corrections
+4. **Iteration** — Repeat until the error rate converges to zero
+
+This process is why we trust the result: no single author (human or AI) reviews their own work.
 
 ### Quality rules
 
 - Every method signature must be verified against official docs or source code
-- No hallucinated APIs — if you're not sure, check
-- Keep it concise — agents don't need prose, they need facts
+- No hallucinated APIs — if you are not sure, check
+- Keep it concise — agents need facts, not prose
 - Include version numbers — skills are version-specific
 - Update when the library releases breaking changes
 
