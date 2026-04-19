@@ -3,6 +3,8 @@
 Version: 1.0.0 (April 2026)
 Target: Symfony 6.x / 7.x applications
 
+Some examples use `#[MapQueryParameter]` (Symfony 6.3+). On 6.0–6.2, replace with `filter_var($request->query->get('id'), FILTER_VALIDATE_INT)` and reject non-int values explicitly.
+
 This skill turns your AI coding agent into a Symfony security auditor. It covers 10 recurring antipatterns and 4 deep-dive categories, with grep-based scan plans and a strict report format. Read-only by design — the agent reports, a human decides what to fix.
 
 Sources:
@@ -70,11 +72,11 @@ Verify these five controls. Any missing → flag as a baseline finding.
 | 1 | SQL / DQL injection | `executeQuery(".*{` interpolating variables; `sort[` without a whitelist in controllers / EasyAdmin; DQL string concatenation. | Typed placeholders (`:id` + `ParameterType::INTEGER`); whitelist `sort[]` against `ClassMetadata::getFieldNames()` in an EventSubscriber. |
 | 2 | Command injection | `exec(`, `shell_exec(`, `system(`, `passthru(`, backticks with interpolated variables. | `Symfony\Component\Process\Process` with arguments as an array; for FS use native PHP (`mkdir`, `chmod`). |
 | 3 | Missing rate limiting | No `login_throttling` in security.yaml; no `framework.rate_limiter`; signup / password-reset / API endpoints with no consumer. | `security.firewalls.main.login_throttling` + `framework.rate_limiter` with `sliding_window` or `token_bucket`; consume by IP in controllers. |
-| 4 | Secrets stored in plaintext | Columns such as `apiKey`, `token`, `secret` queried via `findOneBy(['apiKey' => $raw])` without `hash()`. | Store only `hash('sha256', $token)`; show the plain value exactly once at creation time; look up by the hash. |
-| 5 | Security headers + cookies | `nelmio/security-bundle` missing; no CSP / HSTS / clickjacking / nosniff configured; session without `cookie_httponly` / `cookie_secure` / `cookie_samesite`. | Install `nelmio/security-bundle` with CSP, HSTS (`max_age: 31536000`), clickjacking DENY, nosniff, referrer-policy. Session cookies `httponly + secure + samesite: lax`. |
+| 4 | Secrets stored in plaintext | Columns such as `apiKey`, `token`, `secret` queried via `findOneBy(['apiKey' => $raw])` without `hash()`. | For **high-entropy machine-generated tokens** (API keys, session tokens): store only `hash('sha256', $token)`; show the plain value exactly once at creation time; look up by the hash. For **user passwords** (low entropy): never sha256 — use `UserPasswordHasherInterface` (bcrypt / argon2id) via `security.password_hashers`. |
+| 5 | Security headers + cookies | `nelmio/security-bundle` missing; no CSP / HSTS / clickjacking / nosniff configured; session without `cookie_httponly` / `cookie_secure` / `cookie_samesite`. | Install `nelmio/security-bundle` with CSP including `frame-ancestors 'none'` (modern) or `X-Frame-Options: DENY` (legacy UA fallback); HSTS (`max_age: 31536000`), nosniff, referrer-policy. Session cookies `httponly + secure + samesite: lax`. |
 | 6 | Unsigned webhooks | `POST /webhook/...` endpoints that don't call `hash_equals`, don't validate a DTO with `Validator`, and parse the body via `$request->request->all()`. | `hash_equals(hash_hmac('sha256', $raw, $secret), $sig)` over raw `$request->getContent()`; deserialize to a DTO and validate with `Assert` before processing. |
-| 7 | XSS | `\|raw` in Twig over user- or LLM-generated content; values reflected into `<script>` without `\|json_encode`; `.php` scripts under `public/` interpolating `$_GET` with no escape. | Default Twig escape; for limited HTML use `\|sanitize_html` (html_sanitizer); `\|json_encode` for values inside `<script>`. In `public/*.php`: whitelist regex + `htmlspecialchars` with `ENT_QUOTES \| ENT_SUBSTITUTE`. |
-| 8 | Missing param whitelist | `$session->set($req->get('key'), $req->get('value'))` or filters accepting arbitrary fields; no `const ALLOWED_*`. | `const ALLOWED_KEYS = [...]` + `match($key) { ... }` with per-key validation; reject unknown keys with `BadRequestHttpException`. |
+| 7 | XSS | `\|raw` in Twig over user- or LLM-generated content; values reflected into `<script>` without `\|json_encode`; `.php` / `.phtml` scripts under `public/` interpolating `$_GET` with no escape. | Default Twig escape; for limited HTML use `\|sanitize_html` (html_sanitizer); `\|json_encode` for values inside `<script>`. In `public/*.php` / `*.phtml`: whitelist regex + `htmlspecialchars` with `ENT_QUOTES \| ENT_SUBSTITUTE`. |
+| 8 | Missing param whitelist | Variable-keyed reads from the request: `$req->get($k)`, `$req->query->get($k)`, `$req->request->get($k)`, `$req->attributes->get($k)` where `$k` is user-controlled. Filter / session setters accepting arbitrary fields; no `const ALLOWED_*`. Note: `Request::get()` is deprecated in 6+; prefer the specific bag, but the signal is identical. | `const ALLOWED_KEYS = [...]` + `match($key) { ... }` with per-key validation; reject unknown keys with `BadRequestHttpException`. |
 | 9 | Path traversal | FS operations taking user input without `realpath()`; regex that only filters `..` or `/`. | `realpath($base . '/' . $input)` + `str_starts_with($resolved, $base . '/')`; throw `NotFoundHttpException` if the resolved path leaves the base directory. |
 | 10 | Weak audit logging | `Log::debug` with full `headers` / `body`; no listener for `SwitchUserEvent`; permission changes or admin deletes with no trail. | An `AuditLogger` service that redacts `['password','token','apikey','secret','authorization','cookie']` via `array_walk_recursive`; listeners for switch_user, login fail, admin mutations with `{actor, target, ip, timestamp}`. |
 
@@ -213,8 +215,8 @@ Run the searches in parallel (one `Grep` / `Glob` per signal). Read only files w
 
 - `Grep "executeQuery\(.*\{|executeStatement\(.*\{"` — SQL concat.
 - `Grep "exec\(|shell_exec\(|system\(|passthru\("` outside `vendor/`.
-- `Grep "\|raw"` in `templates/**/*.twig`.
-- `Glob "public/**/*.php"` — read each; look for `$_GET` / `$_POST` without `htmlspecialchars` / validation.
+- `Grep "\|raw"` in `templates/**/*.twig`. For each match, classify: (a) `|raw` applied to a string constant / controller-built HTML → low risk; (b) `|raw` applied to a variable that ultimately traces to user input, request data, DB content of user origin, or LLM output → finding. Only (b) is reported; note the classification in the finding so it can be audited.
+- `Glob "public/**/*.php"` and `public/**/*.phtml` — read each; look for `$_GET` / `$_POST` without `htmlspecialchars` / validation.
 - `Grep "sort\[" --glob "src/**/Controller/**"` — EasyAdmin or paginator sort without whitelist.
 
 ### Block B — Access control / IDOR (deep dive 1 + pattern 8)
