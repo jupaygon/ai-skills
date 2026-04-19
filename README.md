@@ -1,7 +1,7 @@
 # ai-skills
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![Skills](https://img.shields.io/badge/skills-1-blue.svg)](#available-skills)
+[![Skills](https://img.shields.io/badge/skills-2-blue.svg)](#available-skills)
 [![Claude Code](https://img.shields.io/badge/Claude_Code-compatible-blueviolet.svg)](https://claude.com/claude-code)
 [![Cursor](https://img.shields.io/badge/Cursor-compatible-blue.svg)](https://cursor.com)
 
@@ -26,9 +26,10 @@ Skills bridge that gap:
 
 ## Available skills
 
-| Skill                                      | Version  | Description                                                                                                      |
-|--------------------------------------------|----------|------------------------------------------------------------------------------------------------------------------|
-| [easyadmin5](skills/easyadmin5/SKILL.md)   | 5.0.2+   | EasyAdmin 5 for Symfony — dashboard, CRUD, fields, filters, actions, events, security, design, migration from v4 |
+| Skill                                                                      | Version  | Description                                                                                                      |
+|----------------------------------------------------------------------------|----------|------------------------------------------------------------------------------------------------------------------|
+| [easyadmin5](skills/easyadmin5/SKILL.md)                                   | 5.0.2+   | EasyAdmin 5 for Symfony — dashboard, CRUD, fields, filters, actions, events, security, design, migration from v4 |
+| [symfony-security-audit](skills/symfony-security-audit/SKILL.md)           | 1.0.0    | Symfony 6/7 security audit — 10 recurring antipatterns (IDOR, injection, XSS, SSRF, auth) + 4 deep dives + grep-based scan plan + report format |
 
 ## How to use
 
