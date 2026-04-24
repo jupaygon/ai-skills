@@ -27,6 +27,7 @@ Sources:
 | `getCrudControllers()` | `getAdminControllers()` |
 | Pretty URLs optional | Pretty URLs mandatory (only format) |
 | `BatchActionDto::referrerUrl` / `getReferrerUrl()` | Removed |
+| `AdminUrlGenerator::removeReferrer()` | Removed (EA5 does not append `referrer` to URLs) |
 | `MenuItemMatcherInterface::isSelected()/isExpanded()` | Methods removed; use `markSelectedMenuItem()` instead |
 | `createEntity()` returns untyped | Must return `object` |
 | `#[Route]` on dashboard `index()` | `#[AdminDashboard]` attribute on class |
@@ -904,6 +905,8 @@ $urlGenerator->unset('custom_param');
 $urlGenerator->unsetAll();
 $urlGenerator->setDashboard(ManagerDashboardController::class);
 ```
+
+Note: `AdminUrlGenerator::removeReferrer()` was removed in v5. The generated URL no longer carries a `referrer` query parameter, so no replacement is needed — just drop the call from any migrated EA4 code.
 
 ### In Twig
 
