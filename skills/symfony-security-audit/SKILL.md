@@ -1,6 +1,5 @@
 # Symfony Security Audit — Skill for AI Coding Agents
 
-Version: 1.0.0 (April 2026)
 Target: Symfony 6.x / 7.x applications
 
 Some examples use `#[MapQueryParameter]` (Symfony 6.3+). On 6.0–6.2, replace with `filter_var($request->query->get('id'), FILTER_VALIDATE_INT)` and reject non-int values explicitly.
@@ -79,6 +78,79 @@ Verify these five controls. Any missing → flag as a baseline finding.
 | 8 | Missing param whitelist | Variable-keyed reads from the request: `$req->get($k)`, `$req->query->get($k)`, `$req->request->get($k)`, `$req->attributes->get($k)` where `$k` is user-controlled. Filter / session setters accepting arbitrary fields; no `const ALLOWED_*`. Note: `Request::get()` is deprecated in 6+; prefer the specific bag, but the signal is identical. | `const ALLOWED_KEYS = [...]` + `match($key) { ... }` with per-key validation; reject unknown keys with `BadRequestHttpException`. |
 | 9 | Path traversal | FS operations taking user input without `realpath()`; regex that only filters `..` or `/`. | `realpath($base . '/' . $input)` + `str_starts_with($resolved, $base . '/')`; throw `NotFoundHttpException` if the resolved path leaves the base directory. |
 | 10 | Weak audit logging | `Log::debug` with full `headers` / `body`; no listener for `SwitchUserEvent`; permission changes or admin deletes with no trail. | An `AuditLogger` service that redacts `['password','token','apikey','secret','authorization','cookie']` via `array_walk_recursive`; listeners for switch_user, login fail, admin mutations with `{actor, target, ip, timestamp}`. |
+
+---
+
+## Field-observed sub-patterns
+
+The patterns above are the categories. The sub-patterns below are concrete shapes that recur in production codebases — surface them under the matching pattern number when you find them.
+
+### 8a — Implicit type trust on untrusted input
+
+Two recurring shapes share one root cause: the app validates **what** the user sent (the key, the field name) but not **how** it is typed when later consumed. With `declare(strict_types=1)` enabled, every implicit cast becomes a 500.
+
+**Typed-fallback through session.** A "save-session" or "preferences" endpoint accepts a `(parameter, value)` pair, whitelists the **key** (e.g. `company_id`, `network_id`, `lang`) but stores the **raw value** as `mixed`. Downstream code reads `$session->get('company_id')` and passes it to a typed signature `?int $id`. A user with valid CSRF can poison their own session with a string and turn every subsequent admin request into a 500 with stacktrace — DoS + fingerprinting.
+
+```php
+// SessionController — current
+$session->set($parameter, $value);            // ← $value is whatever the user POSTed
+
+// MakeFilterDataTrait — downstream read
+$companyId = (filter_var($req->get('company_id'), FILTER_VALIDATE_INT) ?: null)
+    ?? $session->get('company_id')             // ← string from poisoned session
+    ?? $first?->getId();
+$service->doStuff($companyId);                 // TypeError: Argument must be ?int
+```
+
+**Implicit scalar cast on JSON body field.** Controllers that read `json_decode($request->getContent(), true)` and pass values to a service that does `(string) $value` / `(int) $value`. With `declare(strict_types=1)` and `$value` being an array, `(string) []` triggers `Warning: Array to string conversion` → ErrorException → 500.
+
+```php
+$data  = json_decode($request->getContent(), true);
+$value = $data['value'] ?? '';
+$service->set($user, $field, (string) $value); // (string) array = ErrorException
+```
+
+**Remediation (both shapes):** validate type at the trust boundary, not the use site. For session setters: `match` over the key with a per-key validator (`'company_id' => fn($v) => filter_var($v, FILTER_VALIDATE_INT) !== false`). For JSON bodies: a DTO with `Assert\Type` constraints, or `is_scalar` + explicit cast in the controller before calling the service. Defensive cast on read where the writer cannot be fixed.
+
+### 9a — Resource-locator concatenation
+
+Template names, route names, controller FQCNs, and asset paths built by string concatenation with user input.
+
+```php
+// Antipattern — case-sensitive FS makes the "whitelist" enumerable
+return $this->render(
+    'custom/foo/step2-' . $request->get('vendor') . '.html.twig',
+    $vars,
+);
+
+// Antipattern — forward to a user-named action
+return $this->forward('App\\Controller\\' . $request->get('handler') . 'Controller::index');
+```
+
+A user-supplied `vendor=fortimanager` (lowercase) bypasses any DB-side case-insensitive lookup and trips Twig's case-sensitive `FilesystemLoader`, leaking the prod `releases/<n>/` path in the stack trace. Worse for `forward()`: it's a controller-injection primitive.
+
+**Remediation:** map the user-supplied fragment to a canonical value before locating the resource. Either render only on a fixed whitelist (`match($vendor) { 'forti' => 'step2-Forti.html.twig', ... }`) or use the canonical attribute of the looked-up entity (`$vendor->getApi()`) — never the raw request string.
+
+### 10a — Sentry / Monolog: silence intentional 4xx
+
+`MapRequestPayload`, rate limiters, EasyAdmin's permission checks and `BadRequestHttpException` validators all throw subclasses of `HttpException`. Symfony returns the right 4xx; Sentry, by default, captures them as errors. A payload-fuzzing probe can pump hundreds of "errors" per minute, drowning the signal of a real intrusion.
+
+```yaml
+# config/packages/sentry.yaml
+sentry:
+    options:
+        excluded_exceptions:
+            # 422 — DTO failed validation (correct rejection)
+            - 'Symfony\Component\HttpKernel\Exception\UnprocessableEntityHttpException'
+            # 415 — POST without the right Content-Type (correct rejection)
+            - 'Symfony\Component\HttpKernel\Exception\UnsupportedMediaTypeHttpException'
+            # 429 — rate limiter triggered (defense working as designed)
+            - 'Symfony\Component\HttpKernel\Exception\TooManyRequestsHttpException'
+            # 403 — EasyAdmin ACL refused (the ACL is the security control)
+            - 'EasyCorp\Bundle\EasyAdminBundle\Exception\ForbiddenActionException'
+```
+
+**Audit step:** open `config/packages/sentry.yaml`. If `excluded_exceptions` is missing or only excludes `HttpException` wholesale, list the four above as a finding (Low / operational hygiene). Validate against actual Sentry volume — keeping a 422 visible during early dev is fine; once the endpoint is stable, silencing it is correct so real attacks stay above the noise floor.
 
 ---
 
@@ -224,7 +296,9 @@ Run the searches in parallel (one `Grep` / `Glob` per signal). Read only files w
 - `Grep "->find\(|->findOneBy\(\['id'" --glob "src/**/Controller/**"` — each match is a lookup; open the controller and verify an ownership check in the same method (or a helper called before).
 - `Glob "src/**/Controller/**/*CrudController.php"` — EasyAdmin; read each and verify overrides of `detail / edit / delete`.
 - `Read config/packages/security.yaml` — list `access_control` and firewalls; flag admin endpoints without a role.
-- `Grep "\$session->set\("` followed by a variable argument — potential session poisoning.
+- `Grep "\$session->set\("` followed by a variable argument — potential session poisoning. Cross-reference with every `\$session->get\(` consumed by a typed signature (sub-pattern **8a — typed-fallback**).
+- `Grep "(string)|(int)|(float)" --glob "src/**/Controller/**" --glob "src/**/Service/**"` filtered to lines also touching `json_decode` / `request->getContent` / `\$data\[` — implicit scalar casts on JSON bodies (sub-pattern **8a**).
+- `Grep "->render\('.*' \. |->forward\('.*' \. " --glob "src/**/Controller/**"` — twig render or controller forward built by concatenating user input (sub-pattern **9a**).
 
 ### Block C — Auth / session (patterns 3, 4 + deep dive 4)
 
@@ -247,6 +321,7 @@ Run the searches in parallel (one `Grep` / `Glob` per signal). Read only files w
 - `Read .gitignore` — `.env.local`, `.env.*.local`, `.env.*.php` excluded?
 - `Grep "SwitchUserListener|SwitchUserEvent"` — is switch_user audited?
 - `Grep "exec\(\"mkdir|exec\(\"chmod|exec\(\"rm"` — FS via shell instead of native PHP.
+- `Read config/packages/sentry.yaml` (or `monolog.yaml`) — verify `excluded_exceptions` covers Symfony's intentional 4xx (sub-pattern **10a**): `UnprocessableEntityHttpException`, `UnsupportedMediaTypeHttpException`, `TooManyRequestsHttpException`, `EasyCorp\...\ForbiddenActionException`. Missing → noise that masks real attacks.
 
 ---
 
@@ -378,4 +453,9 @@ Include the file in your system prompt or project documentation. Ask the agent t
 
 ## Changelog
 
-- **1.0.0** (April 2026) — initial release. 10 patterns + 4 deep dives + 5-block scan plan + strict report template.
+- **1.1.0** — added "Field-observed sub-patterns" section after the patterns table:
+    - **8a** Implicit type trust on untrusted input — typed-fallback through session, scalar casts on JSON body fields.
+    - **9a** Resource-locator concatenation — twig template names and controller forwards built by string concatenation with user input.
+    - **10a** Sentry / Monolog config — silence Symfony's intentional 4xx (`UnprocessableEntity`, `UnsupportedMediaType`, `TooManyRequests`, `ForbiddenAction`) so real attacks stay above the noise floor.
+  Scan plan extended in Block B (session-poisoning cross-ref, JSON scalar-cast grep, render-concat grep) and Block E (sentry.yaml `excluded_exceptions` check).
+- **1.0.0** — initial release. 10 patterns + 4 deep dives + 5-block scan plan + strict report template.
