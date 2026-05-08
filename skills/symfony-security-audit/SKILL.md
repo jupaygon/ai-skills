@@ -1,3 +1,8 @@
+---
+name: symfony-security-audit
+description: Read-only security audit for Symfony 6.x/7.x codebases. Covers 10 recurring antipatterns and 4 deep dives (multi-tenant/IDOR, SSRF, EasyAdmin, auth flows) with grep-based scan plans and a strict severity-grouped report. Use when the user asks to audit a Symfony repo, review for OWASP Top 10 issues, or scan for IDOR/SSRF/auth weaknesses. Reports findings with file:line evidence; never auto-fixes.
+---
+
 # Symfony Security Audit — Skill for AI Coding Agents
 
 Target: Symfony 6.x / 7.x applications
