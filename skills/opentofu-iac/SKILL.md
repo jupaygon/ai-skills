@@ -5,7 +5,9 @@ description: Write and review OpenTofu/Terraform infrastructure code without the
 
 # OpenTofu / Terraform — Skill for AI Coding Agents
 
-Target: OpenTofu 1.7+ / Terraform 1.5+, any provider.
+Target: OpenTofu 1.7+ / Terraform 1.7+, any provider. `import` and `moved` work
+from Terraform 1.5; everything else here assumes 1.7, and the one block that
+needs it says so where it appears.
 
 This skill is written from a post-mortem. Every rule below corresponds to a
 failure that actually happened while an agent built a small production
@@ -131,14 +133,22 @@ it only for a genuine one-off, and write down that you did.
 For refactors, two more blocks replace state surgery:
 
 ```hcl
-moved   { from = aws_instance.a          to = aws_instance.b }
-removed { from = aws_instance.retired    lifecycle { destroy = false } }
+# any supported version
+moved { from = aws_instance.a to = aws_instance.b }
+
+# OpenTofu 1.7+ / Terraform 1.7+ — will not parse on anything older
+removed {
+  from = aws_instance.retired
+  lifecycle { destroy = false }
+}
 ```
 
-`import` and `moved` are the older pair; `removed` arrived later than either.
-Check your engine's changelog for the version that added it before relying on
-it — the exact release was not verifiable from the documentation pages while
-writing this, and the block simply will not parse on a version without it.
+`removed` is the newest of the three: Terraform 1.7.0 (17 January 2024,
+"`removed` block for refactoring modules") and OpenTofu 1.7.0 ("Add support for
+a `removed` block that allows users to remove resources or modules from the
+state without destroying them"), both quoted from their own changelogs. On an
+older engine the file fails to parse — there is no graceful degradation, so
+check the version before reaching for it.
 
 Large public modules keep a `migrations.tf` per version holding exactly these
 `moved` blocks, so that upgrading never destroys anything. Copy the habit.
@@ -231,8 +241,10 @@ was taken with the input. Two consequences:
 - The state backend needs encryption at rest and an access policy at least as
   tight as the secrets inside it. A bucket anyone in the account can read is a
   bucket where every password lives.
-- OpenTofu supports encrypting the state itself, so the backend never sees the
-  plaintext. It is the only measure that survives a misconfigured bucket.
+- OpenTofu encrypts the state itself since 1.7.0 — end-to-end, with key
+  providers for a passphrase or a managed key service — so the backend never
+  sees the plaintext. It is the only measure that survives a misconfigured
+  bucket.
 
 Two more hazards specific to encrypted variable files:
 
