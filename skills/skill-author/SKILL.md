@@ -30,13 +30,24 @@ If the conversation already establishes the target (e.g. the user just opened `a
 
 ## Step 3 — Three short questions
 
-Ask the user, in their language, exactly these three questions. Do not paraphrase or re-explain:
+Three things have to be settled before anything is written:
 
-1. **¿Qué hace este skill?** Una frase de qué problema resuelve.
-2. **¿Cuándo debería invocarse?** Frases-disparador o casos de uso. Si es manual-only, basta con "manual".
-3. **¿Manual-only (solo `/<name>`) o auto-invocable (Claude lo dispara cuando detecta los disparadores)?**
+1. **What does this skill do?** One sentence on the problem it solves.
+2. **When should it be invoked?** Trigger phrases or use cases. For manual-only, "manual" is enough.
+3. **Manual-only (`/<name>` only) or auto-invocable (Claude fires it on the triggers)?**
 
-Combine question 1 + question 2 into the `description` field. The `description` is the single most important field — it is what Claude reads to decide whether to invoke the skill automatically. Put the key use case first.
+**Answer from the conversation whatever the conversation already answers.** If the
+user just spent twenty messages describing the problem the skill is for, asking
+them "what does this skill do?" spends their time on something you were told.
+State the answer you derived, in one line each, and ask only for a correction —
+the same way Step 2 skips the location question when the context settles it.
+
+Ask outright only what is genuinely undecided. Question 3 is usually the only
+one: it is a preference, not something the conversation reveals.
+
+Combine answers 1 and 2 into the `description` field, in the user's language.
+The `description` is the single most important field — it is what Claude reads
+to decide whether to invoke the skill automatically. Put the key use case first.
 
 ## Step 4 — Pick a template
 
@@ -77,6 +88,24 @@ Once the script returns successfully, report to the user:
 - One-line reminder: skills are picked up live (no restart needed) for personal and project skills already discovered at startup. If you created the top-level `.claude/skills/` directory just now, restart Claude Code so it can start watching it.
 
 Do not generate body content beyond the template placeholders. The author will fill in the actual instructions.
+
+## Step 7 — Before the body is written
+
+The scaffold produces an empty shell. Two things decide whether what goes inside
+it is worth loading into a context window:
+
+**Every technical claim carries its source.** A skill exists because the agent's
+own knowledge is stale or wrong, so a claim with no source is exactly the thing
+the skill was meant to replace. Link the official page, or the file and line of
+a real installation. What could not be verified says so, in the text, where the
+reader will see it — a marked gap is useful, a confident guess is worse than
+nothing.
+
+**A skill headed for a public repository is reviewed before it gets there.**
+Hostnames, private addresses, client or employer names, internal paths, ticket
+identifiers and account numbers do not belong in one. Write the pattern, not the
+installation it came from: "the balancer that fronts the application", never the
+name it answers to.
 
 ## Hard rules
 
