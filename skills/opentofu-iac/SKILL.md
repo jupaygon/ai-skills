@@ -94,12 +94,16 @@ resource "dns_record" "validation" {
 }
 ```
 
-Two traps worth knowing:
+One trap worth knowing: the same code **works** while the resource already
+exists in the state and **fails** the day it is recreated. A green plan is not
+proof — it may only mean that nothing on that path has been rebuilt yet.
 
-- The same code **works** while the resource already exists in the state and
-  **fails** the day it is recreated. A green plan is not proof.
-- `try()` and `can()` evaluate eagerly and fail on unknown values where
-  `lookup()` succeeds. Prefer `lookup()` inside `for_each` expressions.
+There is a widely repeated claim that `try()` and `can()` misbehave with unknown
+values where `lookup()` does not. The official documentation of `try` says only
+that it catches *dynamic* errors, and says nothing about unknown values, so this
+skill does not turn it into a rule. Treat it as unverified: if a `for_each`
+fails and the keys look static, check what the expression actually resolves to
+rather than swapping functions on faith.
 
 The error message suggests `-target` as a workaround. Do not adopt it as a
 habit: it applies part of the graph and leaves drift nobody is looking at.
@@ -130,6 +134,11 @@ For refactors, two more blocks replace state surgery:
 moved   { from = aws_instance.a          to = aws_instance.b }
 removed { from = aws_instance.retired    lifecycle { destroy = false } }
 ```
+
+`import` and `moved` are the older pair; `removed` arrived later than either.
+Check your engine's changelog for the version that added it before relying on
+it — the exact release was not verifiable from the documentation pages while
+writing this, and the block simply will not parse on a version without it.
 
 Large public modules keep a `migrations.tf` per version holding exactly these
 `moved` blocks, so that upgrading never destroys anything. Copy the habit.
@@ -214,7 +223,18 @@ Committing the ciphertext and keeping the key out of the repository beats an
 ignored plaintext file: an ignore rule does not cover what is already tracked,
 and a file that only exists on one laptop is one laptop away from being lost.
 
-Two hazards specific to this arrangement:
+**And encrypting the repository is only half the problem: the state holds the
+same secrets in the clear.** A password passed to a database, a generated key, a
+value read from a secret store — they all land in the state file, whatever care
+was taken with the input. Two consequences:
+
+- The state backend needs encryption at rest and an access policy at least as
+  tight as the secrets inside it. A bucket anyone in the account can read is a
+  bucket where every password lives.
+- OpenTofu supports encrypting the state itself, so the backend never sees the
+  plaintext. It is the only measure that survives a misconfigured bucket.
+
+Two more hazards specific to encrypted variable files:
 
 - **The decrypt step overwrites the plaintext.** If someone edited the plaintext
   and never encrypted it, that edit disappears silently, and the next apply
