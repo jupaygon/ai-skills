@@ -30,7 +30,7 @@ Skills bridge that gap:
 |----------------------------------------------------------------------------|----------|------------------------------------------------------------------------------------------------------------------|
 | [easyadmin5](skills/easyadmin5/SKILL.md)                                   | 5.0.2+   | EasyAdmin 5 for Symfony — dashboard, CRUD, fields, filters, actions, events, security, design, migration from v4 |
 | [symfony-security-audit](skills/symfony-security-audit/SKILL.md)           | 1.0.0    | Symfony 6/7 security audit — 10 recurring antipatterns (IDOR, injection, XSS, SSRF, auth) + 4 deep dives + grep-based scan plan + report format |
-| [opentofu-iac](skills/opentofu-iac/SKILL.md)                               | 1.0.0    | OpenTofu 1.7+ / Terraform 1.5+ — 8 rules written from a real post-mortem: unknown `for_each` keys, importing existing resources, config out of `user_data`, DNS-validated certificates, secret handling, pre-apply checklist and the rebuild test |
+| [opentofu-iac](skills/opentofu-iac/SKILL.md)                               | 1.0.0    | OpenTofu 1.7+ / Terraform 1.7+ — 8 rules written from a real post-mortem: unknown `for_each` keys, importing existing resources, config out of `user_data`, DNS-validated certificates, secret handling, pre-apply checklist and the rebuild test |
 
 ## How to use
 
