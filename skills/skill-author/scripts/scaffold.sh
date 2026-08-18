@@ -61,7 +61,9 @@ esac
 # The description is what Claude reads to decide whether to invoke the skill, so
 # a short one never fires and a long one gets truncated with its keywords.
 DESCRIPTION_LENGTH=${#DESCRIPTION}
-if [ "$DESCRIPTION_LENGTH" -lt 80 ]; then
+# The floor is about auto-invocation, so it does not apply to a skill that only
+# the user can run: there are no triggers to miss.
+if [ "$MANUAL_ONLY" = "no" ] && [ "$DESCRIPTION_LENGTH" -lt 80 ]; then
     die "--description is $DESCRIPTION_LENGTH chars; under 80 the skill never auto-invokes. Say what it does AND when to use it."
 fi
 if [ "$DESCRIPTION_LENGTH" -gt 1500 ]; then

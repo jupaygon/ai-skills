@@ -45,6 +45,9 @@ the same way Step 2 skips the location question when the context settles it.
 Ask outright only what is genuinely undecided. Question 3 is usually the only
 one: it is a preference, not something the conversation reveals.
 
+**Everything the user reads here goes in the user's language** — the derived
+summaries they are asked to correct, and any question that is still open.
+
 Combine answers 1 and 2 into the `description` field, in the user's language.
 The `description` is the single most important field — it is what Claude reads
 to decide whether to invoke the skill automatically. Put the key use case first.
