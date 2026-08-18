@@ -58,6 +58,18 @@ case "$MANUAL_ONLY" in
     *) die "--manual-only must be 'yes' or 'no'" ;;
 esac
 
+# The description is what Claude reads to decide whether to invoke the skill, so
+# a short one never fires and a long one gets truncated with its keywords.
+DESCRIPTION_LENGTH=${#DESCRIPTION}
+# The floor is about auto-invocation, so it does not apply to a skill that only
+# the user can run: there are no triggers to miss.
+if [ "$MANUAL_ONLY" = "no" ] && [ "$DESCRIPTION_LENGTH" -lt 80 ]; then
+    die "--description is $DESCRIPTION_LENGTH chars; under 80 the skill never auto-invokes. Say what it does AND when to use it."
+fi
+if [ "$DESCRIPTION_LENGTH" -gt 1500 ]; then
+    die "--description is $DESCRIPTION_LENGTH chars; over 1500 it is truncated in the listing and the trigger keywords are lost."
+fi
+
 [ -d "$TARGET_DIR" ] || die "target-dir does not exist: $TARGET_DIR"
 case "$TARGET_DIR" in
     /*) ;;
@@ -102,5 +114,17 @@ if [ "$MANUAL_ONLY" = "yes" ]; then
         { print }
     ' "$SKILL_FILE" > "${SKILL_FILE}.tmp" && mv "${SKILL_FILE}.tmp" "$SKILL_FILE"
 fi
+
+# --- Verify what was written --------------------------------------------------
+# The frontmatter is the load-bearing surface: a skill whose delimiters are off
+# by one line loads with no name and no description, and nothing says so.
+head -1 "$SKILL_FILE" | grep -qx -- "---" \
+    || die "generated file does not open with a frontmatter delimiter: $SKILL_FILE"
+grep -qE "^name: ${NAME}$" "$SKILL_FILE" \
+    || die "generated file has no 'name: ${NAME}' line: $SKILL_FILE"
+grep -qE "^description: .+" "$SKILL_FILE" \
+    || die "generated file has no description: $SKILL_FILE"
+awk 'NR>1 && /^---$/ { found=1; exit } END { exit !found }' "$SKILL_FILE" \
+    || die "frontmatter is never closed: $SKILL_FILE"
 
 printf "%s\n" "$SKILL_FILE"
